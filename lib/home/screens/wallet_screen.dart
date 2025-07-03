@@ -3,6 +3,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:Spendly/home/widgets/notifications_popup.dart';
 import 'package:intl/intl.dart';
 
 class WalletScreen extends StatefulWidget {
@@ -159,7 +160,8 @@ class _WalletScreenState extends State<WalletScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const Icon(Icons.notifications, color: Colors.white),
+                        NotificationButton(),
+                        // const Icon(Icons.notifications, color: Colors.white),
                       ],
                     ),
                     const SizedBox(height: 30),
@@ -169,16 +171,39 @@ class _WalletScreenState extends State<WalletScreen> {
 
                     const SizedBox(height: 30),
 
-                    TextField(
-                      readOnly: true,
-                      controller: TextEditingController(
-                        text: "\$${_cardBalance.toStringAsFixed(2)}",
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: "Current Balance",
-                        border: OutlineInputBorder(),
-                      ),
+                    // TextField(
+                    //   readOnly: true,
+                    //   controller: TextEditingController(
+                    //     text: "\$${_cardBalance.toStringAsFixed(2)}",
+                    //   ),
+                    //   decoration: const InputDecoration(
+                    //     labelText: "Current Balance",
+                    //     border: OutlineInputBorder(),
+                    //   ),
+                    // ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Text(
+                          "Current Balance",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "\$${_cardBalance.toStringAsFixed(2)}",
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
                     ),
+
                     const SizedBox(height: 20),
                     TextField(
                       controller: _balanceController,

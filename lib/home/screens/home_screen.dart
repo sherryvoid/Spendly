@@ -18,6 +18,22 @@ class _HomeScreenState extends State<HomeScreen> {
   int index = 0;
   final uid = FirebaseAuth.instance.currentUser?.uid;
 
+  String selectedCategory = 'All';
+  final themeColor = const Color(0xFF2E6D6A);
+
+  List<String> _getAvailableCategories(List<QueryDocumentSnapshot> logs) {
+    final categories =
+        logs
+            .map(
+              (doc) =>
+                  (doc.data() as Map<String, dynamic>)['category'] ?? 'Unknown',
+            )
+            .toSet()
+            .toList();
+    categories.sort();
+    return ['All', ...categories];
+  }
+
   // Assigns different colors to each transaction avatar
   Color _getRandomColor(int index) {
     final colors = [
@@ -142,6 +158,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   return const Center(child: CircularProgressIndicator());
 
                 final logs = logsSnapshot.data!.docs;
+                final categories = _getAvailableCategories(logs);
+
+                // Filter logs based on selected category
+                final filteredLogs =
+                    selectedCategory == 'All'
+                        ? logs
+                        : logs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          return data['category'] == selectedCategory;
+                        }).toList();
 
                 return Stack(
                   children: [
@@ -192,22 +218,62 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 15),
                             _buildBalanceCard(balance, lastUpdated),
                             const SizedBox(height: 30),
-                            const Text(
-                              "Transactions History",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
+
+                            // Transactions Header + Filter
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  "Transactions History",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: themeColor,
+                                      width: 1.5,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      value: selectedCategory,
+                                      items:
+                                          categories.map((category) {
+                                            return DropdownMenuItem<String>(
+                                              value: category,
+                                              child: Text(category),
+                                            );
+                                          }).toList(),
+                                      onChanged: (value) {
+                                        if (value != null) {
+                                          setState(() {
+                                            selectedCategory = value;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
+
                             const SizedBox(height: 15),
 
                             // Transaction List
                             Expanded(
                               child: ListView.builder(
-                                itemCount: logs.length,
+                                itemCount: filteredLogs.length,
                                 itemBuilder: (context, i) {
                                   final log =
-                                      logs[i].data() as Map<String, dynamic>;
+                                      filteredLogs[i].data()
+                                          as Map<String, dynamic>;
                                   final category = log['category'] ?? 'Unknown';
                                   final desc = log['description'] ?? '';
                                   final amount =

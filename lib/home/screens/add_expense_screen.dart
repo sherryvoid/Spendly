@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:Spendly/home/widgets/split_expense.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   const AddExpenseScreen({super.key});
@@ -401,6 +402,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                     ),
                                   );
                                 }).toList(),
+                          ),
+
+                          // Splitting Expense
+                          SplitExpenseButton(
+                            isSubmitting: _isSubmitting,
+                            onPressed: _submitExpense,
+                            amount: _amountController.text.trim(),
                           ),
                         ],
                       ),

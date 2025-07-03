@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:Spendly/friends/screens/friends_list.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -176,27 +177,18 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         _buildListTile(
                           leadingIcon: const Icon(
-                            Icons.lock_outline,
-                            color: Colors.black54,
-                          ),
-                          title: "Login and security",
-                          onTap: () {},
-                        ),
-                        _buildListTile(
-                          leadingIcon: const Icon(
-                            Icons.privacy_tip_outlined,
-                            color: Colors.black54,
-                          ),
-                          title: "Data and privacy",
-                          onTap: () {},
-                        ),
-                        _buildListTile(
-                          leadingIcon: const Icon(
                             Icons.group_outlined,
                             color: Colors.black54,
                           ),
                           title: "Friends",
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const FriendsListScreen(),
+                              ),
+                            );
+                          },
                         ),
                         _buildListTile(
                           leadingIcon: const Icon(
