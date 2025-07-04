@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:Spendly/home/widgets/split_expense.dart';
+import 'package:Spendly/home/widgets/add_category_dialog.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   const AddExpenseScreen({super.key});
@@ -25,7 +26,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
 
-  final List<String> categories = [
+  final List<String> defaultCategories = [
     'Food',
     'Traveling',
     'Shopping',
@@ -34,8 +35,39 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     'Health',
     'Bills',
     'Transport',
-    'Other',
   ];
+
+  List<String> customCategories = [];
+
+  List<String> categories = [];
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('categories')
+            .get();
+
+    customCategories =
+        snapshot.docs
+            .map((doc) => doc.data()['name'] as String?)
+            .whereType<String>()
+            .where((cat) => !defaultCategories.contains(cat))
+            .toList();
+
+    setState(() {
+      categories = [...defaultCategories, ...customCategories];
+    });
+  }
 
   void _pickDate() async {
     final now = DateTime.now();
@@ -362,48 +394,177 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                           Wrap(
                             spacing: 10,
                             runSpacing: 10,
-                            children:
-                                categories.map((cat) {
-                                  final isSelected = cat == _selectedCategory;
-                                  return GestureDetector(
-                                    onTap:
-                                        () => setState(
-                                          () => _selectedCategory = cat,
-                                        ),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 10,
+                            children: [
+                              // Default categories
+                              ...defaultCategories.map((cat) {
+                                final isSelected = cat == _selectedCategory;
+                                return GestureDetector(
+                                  onTap:
+                                      () => setState(
+                                        () => _selectedCategory = cat,
                                       ),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color:
-                                              isSelected
-                                                  ? themeColor
-                                                  : Colors.grey.shade300,
-                                          width: 1.5,
-                                        ),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
                                         color:
                                             isSelected
-                                                ? themeColor.withOpacity(0.05)
-                                                : Colors.white,
+                                                ? themeColor
+                                                : Colors.grey.shade300,
+                                        width: 1.5,
                                       ),
-                                      child: Text(
-                                        cat,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w500,
-                                          color:
-                                              isSelected
-                                                  ? themeColor
-                                                  : Colors.black87,
-                                        ),
+                                      color:
+                                          isSelected
+                                              ? themeColor.withOpacity(0.05)
+                                              : Colors.white,
+                                    ),
+                                    child: Text(
+                                      cat,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        color:
+                                            isSelected
+                                                ? themeColor
+                                                : Colors.black87,
                                       ),
                                     ),
-                                  );
-                                }).toList(),
-                          ),
+                                  ),
+                                );
+                              }),
 
+                              // Custom categories with delete button (no divider)
+                              ...customCategories.map((cat) {
+                                final isSelected = cat == _selectedCategory;
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color:
+                                          isSelected
+                                              ? themeColor
+                                              : Colors.grey.shade300,
+                                      width: 1.5,
+                                    ),
+                                    color:
+                                        isSelected
+                                            ? themeColor.withOpacity(0.05)
+                                            : Colors.white,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      GestureDetector(
+                                        onTap:
+                                            () => setState(
+                                              () => _selectedCategory = cat,
+                                            ),
+                                        child: Text(
+                                          cat,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w500,
+                                            color:
+                                                isSelected
+                                                    ? themeColor
+                                                    : Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        width: 6,
+                                      ), // small spacing before X button
+                                      Container(
+                                        height: 20,
+                                        width: 1,
+                                        color: Colors.grey.shade300,
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                      ), // subtle vertical divider between text and X
+                                      GestureDetector(
+                                        onTap: () async {
+                                          final uid =
+                                              FirebaseAuth
+                                                  .instance
+                                                  .currentUser
+                                                  ?.uid;
+                                          if (uid == null) return;
+
+                                          final snapshot =
+                                              await FirebaseFirestore.instance
+                                                  .collection('users')
+                                                  .doc(uid)
+                                                  .collection('categories')
+                                                  .where('name', isEqualTo: cat)
+                                                  .get();
+
+                                          for (var doc in snapshot.docs) {
+                                            await doc.reference.delete();
+                                          }
+
+                                          setState(() {
+                                            customCategories.remove(cat);
+                                            categories.remove(cat);
+                                            if (_selectedCategory == cat) {
+                                              _selectedCategory = "";
+                                            }
+                                          });
+                                        },
+                                        child: const Icon(
+                                          Icons.close,
+                                          size: 16,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+
+                              // Add category button
+                              GestureDetector(
+                                onTap:
+                                    () => showDialog(
+                                      context: context,
+                                      builder:
+                                          (context) => AddCategoryDialog(
+                                            onCategoryAdded: (newCat) {
+                                              setState(() {
+                                                if (!defaultCategories.contains(
+                                                      newCat,
+                                                    ) &&
+                                                    !customCategories.contains(
+                                                      newCat,
+                                                    )) {
+                                                  customCategories.add(newCat);
+                                                  categories.add(newCat);
+                                                }
+                                                _selectedCategory = newCat;
+                                              });
+                                            },
+                                          ),
+                                    ),
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    color: Colors.white,
+                                  ),
+                                  child: const Icon(Icons.add),
+                                ),
+                              ),
+                            ],
+                          ),
                           // Splitting Expense
                           SplitExpenseButton(
                             isSubmitting: _isSubmitting,
