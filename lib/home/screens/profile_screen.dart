@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:Spendly/friends/screens/friends_list.dart';
+import 'package:Spendly/home/widgets/invite_friend_tile.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -162,10 +163,8 @@ class ProfileScreen extends StatelessWidget {
                     padding: EdgeInsets.only(top: size.height * 0.08),
                     child: ListView(
                       children: [
-                        _buildListTile(
+                        InviteFriendsTile(
                           leadingIcon: _circleIcon(Icons.diamond),
-                          title: "Invite Friends",
-                          onTap: () {},
                         ),
                         _buildListTile(
                           leadingIcon: const Icon(
