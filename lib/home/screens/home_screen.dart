@@ -63,6 +63,42 @@ class _HomeScreenState extends State<HomeScreen> {
     final size = MediaQuery.of(context).size;
     final isHome = index == 0;
 
+    void _showExitDialog() {
+      showDialog(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: Text('Exit App'),
+              content: Text('Do you want to exit the app?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Exit'),
+                ),
+              ],
+            ),
+      );
+    }
+
+    @override
+    Widget build(BuildContext context) {
+      return PopScope(
+        canPop: false, // Prevents back navigation
+        onPopInvoked: (didPop) {
+          if (didPop) return;
+          // Optionally show exit dialog
+          _showExitDialog();
+        },
+        child: Scaffold(
+          // Your home screen content
+        ),
+      );
+    }
+
     return Scaffold(
       body:
           isHome

@@ -1,8 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:Spendly/home/screens/all_notifications_screen.dart';
+
 import 'package:flutter/material.dart';
 import 'package:Spendly/friends/screens/friends_list.dart';
 import 'package:Spendly/home/widgets/invite_friend_tile.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -11,6 +16,37 @@ class ProfileScreen extends StatelessWidget {
   void _logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
     Navigator.pushReplacementNamed(context, '/login');
+  }
+
+  Future<String?> uploadImageAndGetUrl() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile == null) return null;
+
+    File imageFile = File(pickedFile.path);
+    final user = FirebaseAuth.instance.currentUser;
+
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('user_images')
+        .child('${user!.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+
+    await storageRef.putFile(imageFile);
+
+    final downloadUrl = await storageRef.getDownloadURL();
+    print("Download URL: $downloadUrl");
+    return downloadUrl;
+  }
+
+  void saveImageUrlToFirestore(String url) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .collection('profile')
+        .add({'imageUrl': url, 'uploadedAt': Timestamp.now()});
   }
 
   /// Navigates back to Home Screen
@@ -88,30 +124,58 @@ class ProfileScreen extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const Icon(
-                        Icons.notifications_outlined,
-                        color: Colors.white,
-                      ),
+                      NotificationButton(),
                     ],
                   ),
                 ),
 
                 /// Avatar and user info from Firestore
-                const SizedBox(height: 8),
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFF42A5F5),
-                  ),
-                  child: const Icon(
-                    Icons.person,
-                    size: 60,
-                    color: Colors.white,
-                  ),
+                SizedBox(height: 8),
+                Stack(
+                  children: [
+                    // Main circular container
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF42A5F5),
+                      ),
+                      child: const Icon(
+                        Icons.person,
+                        size: 60,
+                        color: Colors.white,
+                      ),
+                    ),
+
+                    // Edit icon positioned at the top right
+                    // Positioned(
+                    //   top: 0,
+                    //   right: 0,
+                    //   child: GestureDetector(
+                    //     onTap: () {
+                    //       // Call your image upload function here
+                    //       // uploadImage();
+                    //       uploadImageAndGetUrl();
+                    //     },
+                    //     child: Container(
+                    //       padding: const EdgeInsets.all(4),
+                    //       decoration: BoxDecoration(
+                    //         shape: BoxShape.circle,
+                    //         color: Colors.white,
+                    //         border: Border.all(color: Colors.grey.shade300),
+                    //       ),
+                    //       child: const Icon(
+                    //         Icons.edit,
+                    //         size: 16,
+                    //         color: Colors.black,
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ),
+                  ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
 
                 /// Fetch full name and email using Firestore stream
                 if (user != null)
@@ -166,14 +230,7 @@ class ProfileScreen extends StatelessWidget {
                         InviteFriendsTile(
                           leadingIcon: _circleIcon(Icons.diamond),
                         ),
-                        _buildListTile(
-                          leadingIcon: const Icon(
-                            Icons.person_outline,
-                            color: Colors.black54,
-                          ),
-                          title: "Personal profile",
-                          onTap: () {},
-                        ),
+
                         _buildListTile(
                           leadingIcon: const Icon(
                             Icons.group_outlined,
