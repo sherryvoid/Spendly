@@ -6,12 +6,16 @@ class SplitExpenseButton extends StatefulWidget {
   final bool isSubmitting;
   final VoidCallback onPressed;
   final String amount;
+  final bool isAmountEntered;
+  final Function(List<Map<String, dynamic>>) onSplitUpdated;
 
   const SplitExpenseButton({
     super.key,
     required this.onPressed,
     required this.isSubmitting,
     required this.amount,
+    required this.isAmountEntered,
+    required this.onSplitUpdated,
   });
 
   @override
@@ -22,6 +26,7 @@ class _SplitExpenseButtonState extends State<SplitExpenseButton> {
   List<Map<String, dynamic>> _friends = [];
   List<Map<String, dynamic>> selectedFriends = [];
   Map<String, double> friendSplits = {};
+  List<Map<String, dynamic>> splitFriends = [];
   bool _isLoading = true;
 
   @override
@@ -71,23 +76,20 @@ class _SplitExpenseButtonState extends State<SplitExpenseButton> {
   void _calculateSplit() {
     final double totalAmount = double.tryParse(widget.amount) ?? 0;
 
-    List<String> participants = [];
-    if (selectedFriends.isNotEmpty) {
-      participants =
-          selectedFriends
-              .map((f) => f['name'] ?? 'Unknown')
-              .cast<String>()
-              .toList();
-      participants.add("Me");
-    }
+    if (selectedFriends.isEmpty) return;
 
-    final double splitAmount =
-        participants.isEmpty ? 0 : (totalAmount / participants.length);
+    List<Map<String, dynamic>> tempSplit = List.from(selectedFriends);
+    tempSplit.add({'name': 'Me', 'uid': 'me'}); // Include self
 
-    friendSplits = {
-      for (var friend in participants)
-        friend: double.parse(splitAmount.toStringAsFixed(2)),
-    };
+    final double splitAmount = totalAmount / tempSplit.length;
+
+    splitFriends =
+        tempSplit.map((friend) {
+          return {
+            ...friend,
+            'amount': double.parse(splitAmount.toStringAsFixed(2)),
+          };
+        }).toList();
   }
 
   void _showFriendSelectionDialog() {
@@ -167,6 +169,9 @@ class _SplitExpenseButtonState extends State<SplitExpenseButton> {
                       selectedFriends = List.from(tempSelected);
                       _calculateSplit();
                     });
+                    // Notify the parent widget with updated data
+                    widget.onSplitUpdated(splitFriends);
+
                     Navigator.pop(context);
                   },
                   child: const Text("Done"),
@@ -180,36 +185,29 @@ class _SplitExpenseButtonState extends State<SplitExpenseButton> {
   }
 
   Widget _buildSelectedFriendsList() {
-    if (selectedFriends.isEmpty) return const SizedBox.shrink();
+    if (splitFriends.isEmpty) return const SizedBox.shrink();
 
     List<Widget> chips =
-        selectedFriends
-            .map(
-              (friend) => Chip(
-                label: Text(
-                  "${friend['name']}: \$${friendSplits[friend['name']]?.toStringAsFixed(2) ?? '0.00'}",
-                ),
-                deleteIcon: const Icon(Icons.close),
-                onDeleted: () {
-                  setState(() {
-                    selectedFriends.removeWhere(
-                      (f) => f['uid'] == friend['uid'],
-                    );
-                    _calculateSplit();
-                  });
-                },
-              ),
-            )
-            .toList();
+        splitFriends.map((friend) {
+          final name = friend['name'] ?? 'Unknown';
+          final amount = friend['amount']?.toStringAsFixed(2) ?? '0.00';
 
-    chips.add(
-      Chip(
-        label: Text(
-          "Me: \$${friendSplits["Me"]?.toStringAsFixed(2) ?? '0.00'}",
-        ),
-        backgroundColor: Colors.grey[300],
-      ),
-    );
+          return Chip(
+            label: Text("$name: \$$amount"),
+            deleteIcon: friend['uid'] != 'me' ? const Icon(Icons.close) : null,
+            onDeleted:
+                friend['uid'] != 'me'
+                    ? () {
+                      setState(() {
+                        selectedFriends.removeWhere(
+                          (f) => f['uid'] == friend['uid'],
+                        );
+                        _calculateSplit();
+                      });
+                    }
+                    : null,
+          );
+        }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -217,7 +215,7 @@ class _SplitExpenseButtonState extends State<SplitExpenseButton> {
         Row(
           children: [
             const Text(
-              "Selected Friends:",
+              "Split With:",
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const Spacer(),
@@ -238,7 +236,7 @@ class _SplitExpenseButtonState extends State<SplitExpenseButton> {
   @override
   Widget build(BuildContext context) {
     final bool isButtonDisabled =
-        widget.isSubmitting || selectedFriends.isNotEmpty;
+        widget.isSubmitting || !widget.isAmountEntered;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

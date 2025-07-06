@@ -57,10 +57,64 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
     });
   }
 
-  void _removeFriend(int index) {
-    setState(() {
-      _friends.removeAt(index);
-    });
+  void _removeFriend(int index) async {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null) return;
+
+    final firestore = FirebaseFirestore.instance;
+    final friend = _friends[index];
+    final friendUid = friend['uid'];
+
+    try {
+      final currentUserFriendsRef = firestore
+          .collection('users')
+          .doc(currentUid)
+          .collection('friends');
+
+      final currentQuery =
+          await currentUserFriendsRef
+              .where('friendId', isEqualTo: friendUid)
+              .limit(1)
+              .get();
+
+      if (currentQuery.docs.isNotEmpty) {
+        await currentUserFriendsRef.doc(currentQuery.docs.first.id).delete();
+      }
+
+      final friendUserFriendsRef = firestore
+          .collection('users')
+          .doc(friendUid)
+          .collection('friends');
+
+      final friendQuery =
+          await friendUserFriendsRef
+              .where('friendId', isEqualTo: currentUid)
+              .limit(1)
+              .get();
+
+      if (friendQuery.docs.isNotEmpty) {
+        await friendUserFriendsRef.doc(friendQuery.docs.first.id).delete();
+      }
+
+      setState(() {
+        _friends.removeAt(index);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Friend removed"),
+          backgroundColor: Colors.black87,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error removing friend: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override

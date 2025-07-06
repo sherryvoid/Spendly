@@ -19,13 +19,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _descriptionController = TextEditingController();
   final _amountController = TextEditingController();
 
-  DateTime _selectedDate = DateTime.now();
-  String _selectedCategory = 'Entertainment';
-  bool _isSubmitting = false;
-
-  final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance;
-
   final List<String> defaultCategories = [
     'Food',
     'Traveling',
@@ -40,10 +33,33 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   List<String> customCategories = [];
 
   List<String> categories = [];
+
+  List<Map<String, dynamic>> selectedFriends = [];
+  Map<String, double> friendSplits = {};
+
+  void _onAmountChanged() {
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _amountController.removeListener(_onAmountChanged);
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  DateTime _selectedDate = DateTime.now();
+  String _selectedCategory = 'Entertainment';
+  bool _isSubmitting = false;
+
+  final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance;
+
   @override
   void initState() {
     super.initState();
     _loadCategories();
+    _amountController.addListener(_onAmountChanged);
   }
 
   Future<void> _loadCategories() async {
@@ -87,8 +103,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Future<void> _submitExpense() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) {
+    final currentUser = _auth.currentUser;
+    final currentUid = currentUser?.uid;
+
+    if (currentUid == null) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("User not logged in")));
@@ -116,44 +134,101 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      final expenseRef = _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('expenses');
+      // If no split, just add for current user
+      if (selectedFriends.isEmpty) {
+        final userExpenseRef = _firestore
+            .collection('users')
+            .doc(currentUid)
+            .collection('expenses');
 
-      // Save the new expense
-      await expenseRef.add({
-        'description': description,
-        'amount': amount,
-        'category': _selectedCategory,
-        'date': _selectedDate,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+        await userExpenseRef.add({
+          'description': description,
+          'amount': amount,
+          'category': _selectedCategory,
+          'date': _selectedDate,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
 
-      // 🔄 Update balance
-      final balanceRef = _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('balances')
-          .doc('current');
+        final balanceRef = _firestore
+            .collection('users')
+            .doc(currentUid)
+            .collection('balances')
+            .doc('current');
 
-      final balanceSnapshot = await balanceRef.get();
-      final currentBalance =
-          (balanceSnapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+        final balanceSnapshot = await balanceRef.get();
+        final currentBalance =
+            (balanceSnapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
 
-      final newBalance = currentBalance - amount;
+        final newBalance = currentBalance - amount;
 
-      await balanceRef.set({
-        'balance': newBalance,
-        'lastUpdated': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+        await balanceRef.set({
+          'balance': newBalance,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } else {
+        // For split: loop over selectedFriends and add expense to each
+        for (var friend in selectedFriends) {
+          // Replace 'me' with actual current user's UID
+          final rawUid = friend['uid'];
+          final uid = rawUid == 'me' ? currentUid : rawUid;
 
-      // ✅ Clear fields and pop
+          final friendAmount = (friend['amount'] as num).toDouble();
+
+          final friendExpenseRef = _firestore
+              .collection('users')
+              .doc(uid)
+              .collection('expenses');
+
+          await friendExpenseRef.add({
+            'description': description,
+            'amount': friendAmount,
+            'category': _selectedCategory,
+            'date': _selectedDate,
+            'createdAt': FieldValue.serverTimestamp(),
+            'addedBy': currentUid,
+          });
+
+          final friendBalanceRef = _firestore
+              .collection('users')
+              .doc(uid)
+              .collection('balances')
+              .doc('current');
+
+          final friendBalanceSnap = await friendBalanceRef.get();
+          final currentBalance =
+              (friendBalanceSnap.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+
+          final updatedBalance = currentBalance - friendAmount;
+
+          await friendBalanceRef.set({
+            'balance': updatedBalance,
+            'lastUpdated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          if (uid != currentUid) {
+            final friendUserDoc = _firestore.collection('users').doc(uid);
+
+            await friendUserDoc.collection('notifications').add({
+              'type': 'split',
+              'splitter': FirebaseAuth.instance.currentUser?.displayName ?? '',
+              'splitterId': FirebaseAuth.instance.currentUser?.uid ?? '',
+              'time': FieldValue.serverTimestamp(),
+              'description':
+                  '${FirebaseAuth.instance.currentUser?.displayName} split an expense of $friendAmount with you: "$description".',
+              'read': false,
+            });
+          }
+        }
+      }
+
+      // Reset UI
       _descriptionController.clear();
       _amountController.clear();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Expense added and balance updated")),
+        const SnackBar(
+          content: Text("Expense(s) added and balance(s) updated"),
+        ),
       );
 
       Navigator.pop(context);
@@ -570,6 +645,19 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                             isSubmitting: _isSubmitting,
                             onPressed: _submitExpense,
                             amount: _amountController.text.trim(),
+                            isAmountEntered:
+                                _amountController.text.trim().isNotEmpty,
+                            onSplitUpdated: (selectedFriends) {
+                              setState(() {
+                                this.selectedFriends = selectedFriends;
+
+                                // Optionally: If you still need friendSplits map for other logic:
+                                this.friendSplits = {
+                                  for (var friend in selectedFriends)
+                                    friend['name']: friend['amount'],
+                                };
+                              });
+                            },
                           ),
                         ],
                       ),

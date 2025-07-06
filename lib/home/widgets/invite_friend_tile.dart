@@ -88,9 +88,29 @@ class InviteFriendsTile extends StatelessWidget {
                               searchedUser!['email'] ?? 'No Email',
                             ),
                             trailing: ElevatedButton(
-                              onPressed: () {
-                                _inviteUser(searchedUser!['uid']);
-                                Navigator.pop(context);
+                              onPressed: () async {
+                                final wasAdded = await _inviteUser(
+                                  searchedUser!['uid'],
+                                );
+
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        wasAdded
+                                            ? 'Friend added!'
+                                            : 'Friend is already added.',
+                                      ),
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+
+                                  if (wasAdded) {
+                                    Navigator.pop(
+                                      context,
+                                    ); // Only close if newly added
+                                  }
+                                }
                               },
                               child: const Text("Invite"),
                             ),
@@ -115,48 +135,54 @@ class InviteFriendsTile extends StatelessWidget {
     );
   }
 
-  void _inviteUser(String friendUid) async {
-    final currentUid = FirebaseAuth.instance.currentUser?.uid;
-    if (currentUid == null || currentUid == friendUid) return;
+  Future<bool> _inviteUser(String friendUid) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUid = currentUser?.uid;
+    if (currentUid == null || currentUid == friendUid) return false;
 
     final firestore = FirebaseFirestore.instance;
 
-    final currentUserFriendsRef = firestore
-        .collection('users')
-        .doc(currentUid)
-        .collection('friends');
+    final currentUserDoc = firestore.collection('users').doc(currentUid);
+    final friendUserDoc = firestore.collection('users').doc(friendUid);
 
-    final friendUserFriendsRef = firestore
-        .collection('users')
-        .doc(friendUid)
-        .collection('friends');
+    final currentUserFriendsRef = currentUserDoc.collection('friends');
+    final friendUserFriendsRef = friendUserDoc.collection('friends');
 
-    // Check if already exists in current user's friend list
     final existingCurrentFriendQuery =
         await currentUserFriendsRef
             .where('friendId', isEqualTo: friendUid)
             .limit(1)
             .get();
 
-    if (existingCurrentFriendQuery.docs.isEmpty) {
+    final alreadyAdded = existingCurrentFriendQuery.docs.isNotEmpty;
+
+    if (!alreadyAdded) {
+      // Add friend entry to both users
       await currentUserFriendsRef.add({
         'friendId': friendUid,
         'addedAt': FieldValue.serverTimestamp(),
       });
-    }
 
-    // Check if already exists in invited user's friend list
-    final existingFriendFriendQuery =
-        await friendUserFriendsRef
-            .where('friendId', isEqualTo: currentUid)
-            .limit(1)
-            .get();
-
-    if (existingFriendFriendQuery.docs.isEmpty) {
       await friendUserFriendsRef.add({
         'friendId': currentUid,
         'addedAt': FieldValue.serverTimestamp(),
       });
+
+      // Get current user's name
+      final currentUserSnapshot = await currentUserDoc.get();
+      final currentUserName = currentUserSnapshot.data()?['name'] ?? 'Unknown';
+
+      // Add notification to friend's notifications subcollection
+      await friendUserDoc.collection('notifications').add({
+        'type': 'friend added',
+        'name': currentUserName,
+        'time': FieldValue.serverTimestamp(),
+        'description':
+            "You've been added as a friend by $currentUserName, you can now split expenses together!",
+        'read': false,
+      });
     }
+
+    return !alreadyAdded;
   }
 }
