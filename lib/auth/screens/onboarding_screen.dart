@@ -18,7 +18,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _checkAuthStatus();
   }
 
   void _checkAuthStatus() {
